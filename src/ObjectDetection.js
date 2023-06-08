@@ -49,15 +49,13 @@ const ObjectDetection = () => {
 
         const predictions = await net.detect(video);
         drawPredictions(predictions);
-        setTimeout(() => {
-            requestAnimationFrame(() => detectObjects(net));
-        },150)
+        requestAnimationFrame(() => detectObjects(net));
     };
 
     const drawPredictions = (predictions) => {
-        const color = "green";
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
+        let color = "white";
         context.clearRect(0, 0, context.canvas.width, context.canvas.height);
         context.lineWidth = 2;
         predictions
@@ -67,11 +65,29 @@ const ObjectDetection = () => {
                 const y = prediction.bbox[1];
                 const width = prediction.bbox[2];
                 const height = prediction.bbox[3];
-
+                
                 context.beginPath();
                 context.rect(x, y, width, height);
                 context.strokeStyle = color;
                 context.stroke();
+
+                const sharpness = calculateSharpness(x, y, width, height, canvas);
+                
+                if(sharpness > 7500){
+                    color = "green";
+                    context.beginPath();
+                    context.rect(x, y, width, height);
+                    context.strokeStyle = color;
+                    context.stroke();
+                }else{
+                    color = "white";
+                    context.beginPath();
+                    context.rect(x, y, width, height);
+                    context.strokeStyle = color;
+                    context.stroke();
+                }
+
+                
 
                 const cornerSize = 20; // Köşe çubuğu boyutu
                 const gapSize = 10;
@@ -107,8 +123,62 @@ const ObjectDetection = () => {
                 context.lineTo(x - cornerSize + gapSize, y + height - cornerSize + gapSize);
                 context.strokeStyle = color;
                 context.stroke();
+
+                
+                console.log('Sharpness:', sharpness);
             });
     };
+
+    const calculateSharpness = (x, y, width, height, canvas) => {
+        const context = canvas.getContext('2d');
+        const imageData = context.getImageData(x, y, width, height);
+        const pixels = imageData.data;
+
+
+        let sharpness = 0;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+            const grayscale = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+            const neighborIndices = getNeighborIndices(i / 4, width, height);
+            const neighborGrayscale = neighborIndices.map((index) => {
+                if (index >= 0 && index < pixels.length && pixels[index] != null) {
+                  return pixels[index];
+                } else {
+                  return 0; // Varsayılan değeri burada 0 olarak seçtik
+                }
+              });
+            const gradient = Math.max(...neighborGrayscale) - grayscale;
+            sharpness += Math.abs(gradient);
+        }
+
+        return sharpness;
+    };
+
+
+    const getNeighborIndices = (index, width, height) => {
+        const indices = [];
+        const offsets = [-1, 0, 1];
+        
+        const x = index % width;
+        const y = Math.floor(index / width);
+      
+        for (let i = 0; i < offsets.length; i++) {
+          for (let j = 0; j < offsets.length; j++) {
+            const neighborX = x + offsets[i];
+            const neighborY = y + offsets[j];
+      
+            if (neighborX >= 0 && neighborX < width && neighborY >= 0 && neighborY < height) {
+              const neighborIndex = (neighborY * width + neighborX) * 4;
+              indices.push(neighborIndex);
+            }
+          }
+        }
+      
+        return indices;
+      };
+      
+    
+    
 
 
 
